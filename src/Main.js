@@ -7,7 +7,7 @@ import { FaceDirs } from './core/FaceDirs.js';
 import { Player } from './player.js';
 import { Generate } from './SimpleWorldGeneration.js';
 import * as texture from './core/TextureIdentifierManager.js'
-import { OrbitControls } from './../node_modules/three/examples/jsm/controls/OrbitControls.js';
+import { OrbitControls } from '.../node_modules/three/examples/jsm/controls/OrbitControls.js';
 let scene = new three.Scene();
 let camera = new three.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 256);
 let renderer = new three.WebGLRenderer({ antialias: true });
