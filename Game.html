@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script type="importmap">
+        {
+        "imports": {
+        "three": "/three.module.js"
+        }
+        }
+    </script>
+    <script type="module" defer>
+        async function initT() {
+            let res = await fetch('/ProjectInfo.json');
+            let text = await res.text();
+            let info = JSON.parse(text);
+            let name = info.name;
+            const element = document.createElement('title');
+            element.innerHTML = name;
+            document.head.appendChild(element);
+            let script = document.createElement('script');
+            script.type = "module";
+            script.src = info.Main;
+            script.defer = true;
+            document.head.appendChild(script);
+        }
+        initT();
+    </script>
+    <style>
+        html,
+        body {
+            overflow: hidden;
+            touch-action: none;
+            margin: 0px;
+        }
+    </style>
+</head>
+
+<body>
+    <p id="pos" style="position: absolute; left: 20px;top: 30px;">0,0,0</p>
+</body>
+
+</html>
