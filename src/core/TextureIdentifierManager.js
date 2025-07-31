@@ -58,7 +58,7 @@ const canvas = document.createElement('canvas');
 canvas.width = 1024;
 canvas.height = 1024;
 const context = canvas.getContext('2d');
-let TexturePathPrefix = "/texturepack/Default/";
+let TexturePathPrefix = "texturepack/Default/";
 function loadImage(src) {
     //alert(src);
     return new Promise((resolve) => {
