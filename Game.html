@@ -13,7 +13,7 @@
     </script>
     <script type="module" defer>
         async function initT() {
-            let res = await fetch('/ProjectInfo.json');
+            let res = await fetch('ProjectInfo.json');
             let text = await res.text();
             let info = JSON.parse(text);
             let name = info.name;
