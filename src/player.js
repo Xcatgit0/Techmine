@@ -1,56 +1,94 @@
 import { PlayerController, VirtualJoystick } from "./core/core.js";
 import * as three from 'three';
 import * as core from './core/core.js';
-export class Player {
-    constructor(world) {
-        this.world = world;
-        this.mesh = new three.Group();
-        let capsuleGeometry = new three.CapsuleGeometry(0.5, 2);
-        let capsule = new three.Mesh(
-            capsuleGeometry,
-            new three.MeshStandardMaterial({ color: 0xffffff })
-        );
-        capsule.castShadow = true;
-        capsule.receiveShadow = true;
-        capsule.position.y = 1.5;
-        this.mesh.add(capsule);
-        this.onground = false;
-        this.joystick = new VirtualJoystick.VirtualJoystick();
-        this.controller = new PlayerController.PlayerController(this.mesh, this.joystick);
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' && this.onground) {
-                this.mesh.position.y += 1;
-            }
-        });
-        this.debugBox = new three.Mesh(
-            new three.BoxGeometry(1.2, 1.2, 1.2),
-            new three.MeshStandardMaterial({ color: 0xffff00 })
-        );
+import { EventEmitter } from "./EventEmitter.js";
+import { Entity, PhysicsEngine } from "./core/Physics.js"; // 👈 import entity
+import * as TextTexture from './core/TextTexture.js';
+import disposeGroup from "./disposer.js";
+export function createPlayerMesh(displayName) {
+    // Mesh แสดงผล
+    let mesh = new three.Group();
+    const axles = new three.AxesHelper(2);
+    mesh.add(axles);
+    let capsuleGeometry = new three.CapsuleGeometry(0.5, 2);
+    let capsule = new three.Mesh(
+        capsuleGeometry,
+        new three.MeshStandardMaterial({ color: 0xffffff })
+    );
+    //;capsule.visible = false;
+    capsule.castShadow = true;
+    capsule.receiveShadow = true;
+    capsule.position.y = 1.0; // ให้ origin = เท้า text at y 4
+    mesh.add(capsule);
+    if (displayName) {
+        let texture = TextTexture.createTextTexture(displayName);
+        let SpriteMaterial = new three.SpriteMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
+        let sprite = new three.Sprite(SpriteMaterial);
+        sprite.scale.set(2, 1, 1);
+        sprite.position.y = 3;
+        mesh.add(sprite);
     }
-    update(dt) {
-        const block = core.Chunk.getBlock(
-            Math.trunc(this.mesh.position.x),
-            Math.trunc(this.mesh.position.y),
-            Math.trunc(this.mesh.position.z),
-            16, this.world);
-        if (block !== null) {
-            this.onground = block.id !== 'techmine:air';
+    //setTimeout(() => { disposeGroup(mesh) }, 10_000);
+    return mesh;
+}
+export class Player {
+    /**
+     * 
+     * @param {core.World.World} world 
+     * @param {any} joystick 
+     * @param {PhysicsEngine} physicsEngine 
+     */
+    constructor(world, joystick, physicsEngine) {
+        this.world = world;
+        this.height = 2;
+
+        // Mesh แสดงผล
+        this.mesh = createPlayerMesh();
+
+        // Entity ฟิสิกส์
+        this.entity = new Entity(0, 0, 0, 0.8, 1.8, 0.8);
+        this.physics = physicsEngine;
+        this.entity.y = 50;
+        this.physics.addEntity(this.entity);
+
+        // Controller
+        this.joystick = joystick ?? new VirtualJoystick.VirtualJoystick();
+        this.controller = new PlayerController.PlayerController(this.mesh, this.joystick);
+
+        this.event = new EventEmitter();
+    }
+    get position() {
+        return this.mesh.position;
+    }
+
+    update(dtMil) {
+        const dt = dtMil / 1000;
+
+        // sync entity → mesh
+        this.mesh.position.set(this.entity.x, this.entity.y, this.entity.z);
+
+        // ควบคุม input จาก joystick → ปรับ vx, vz
+        const speed = 4; // หน่วย/วินาที
+        let moveX = this.joystick.input.x;
+        let moveZ = this.joystick.input.y;
+        let velocity = new three.Vector3(moveX, 0, moveZ).applyAxisAngle(new three.Vector3(0, 1, 0), this.mesh.rotation.y);
+        velocity.multiplyScalar(speed);
+        this.entity.vx = velocity.x * speed;
+        this.entity.vz = velocity.z * speed;
+
+        // กระโดด
+        if (this.joystick.input.pitch > 0.5 && this.entity.onGround) {
+            this.entity.vy = 10; // jump power
         }
-        if (!this.onground) {
-            this.mesh.position.y -= 0.005 * dt;
-        }
-        const b = core.Chunk.getBlock(
-            Math.trunc(this.mesh.position.x),
-            Math.trunc(this.mesh.position.y) + 1,
-            Math.trunc(this.mesh.position.z),
-            16, this.world);
-        if (b !== null) {
-            this.mesh.position.y += (b.id !== 'techmine:air') ? 0.01 * dt : 0;
-        }
-        this.debugBox.position.copy(new three.Vector3(
-            Math.trunc(this.mesh.position.x),
-            Math.trunc(this.mesh.position.y) + 1,
-            Math.trunc(this.mesh.position.z)));
-        this.controller.update(dt / 1000);
+
+        // อัปเดตฟิสิกส์
+        //this.physics.update(dt);
+
+        // sync mesh อีกทีหลังฟิสิกส์
+        //this.mesh.position.set(this.entity.x, this.entity.y, this.entity.z);
+        this.physics.setPosition(this.mesh, this.entity);
+        // อัปเดต controller (กล้อง, การหมุน ฯลฯ)
+        this.controller.update(dt, {});
+
     }
 }

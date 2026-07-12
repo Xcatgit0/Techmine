@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "web": "http-server -c 5 -p 8000"
   },
   "author": "Achira",
   "license": "ISC",
@@ -11,8 +12,11 @@
   "description": "",
   "dependencies": {
     "@types/three": "^0.177.0",
+    "crypto": "^1.0.1",
+    "http-proxy": "^1.18.1",
     "seedrandom": "^3.0.5",
     "simplex-noise": "^4.0.3",
-    "three": "^0.177.0"
+    "three": "^0.177.0",
+    "ws": "^8.18.3"
   }
 }

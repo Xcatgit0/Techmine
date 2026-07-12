@@ -2,7 +2,7 @@ import * as THREE from 'three';
 const Size = 0.5;
 /**
  * 
- * @param {Array<'Z+'|'Z-'|'X+'|'X-'|'Y+'|'Y-'>} sidesToInclude 
+ * @param {string[]} sidesToInclude 
  */
 function createSelectiveCube(sidesToInclude) {
     const geometry = new THREE.BufferGeometry();
@@ -46,7 +46,7 @@ function createSelectiveCube(sidesToInclude) {
 
 /**
  * 
- * @param {Array<'Z+'|'Z-'|'X+'|'X-'|'Y+'|'Y-'>} sidesToInclude 
+ * @param {string[]} sidesToInclude 
  */
 function createIndices(sidesToInclude) {
     const faceVertices = {

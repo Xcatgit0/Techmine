@@ -2,9 +2,15 @@ import { Voxel } from "./Voxel.js";
 import { World } from "./World.js";
 import { FaceDirs } from "./FaceDirs.js";
 import * as three from 'three';
-import * as texture from './TextureIdentifierManager.js';
+import { checkFaceCulling } from "./FaceCullingRules.js";
+import * as textur from './TextureIdentifierManager.js';
 import { createSelectiveCube, createIndices } from "./VoxelGeometry.js";
-
+let texture = { ...textur };
+if (typeof process !== 'undefined') {
+    for (let i in texture) {
+        texture[i] = (typeof texture[i] !== "function") ? ((typeof texture[i] === "string") ? "" : 0) : () => { }
+    }
+}
 function getFaceUVTemplate(direction, uv) {
     const baseUV = {
         bl: [uv[0], uv[1]],
@@ -84,11 +90,12 @@ function getBlock(globalX, globalY, globalZ, CHUNK_SIZE, world) {
     const cz = Math.floor(globalZ / CHUNK_SIZE);
 
     const chunk = world.getChunk(cx, cz);
-    if (!chunk) return null;
+    if (!chunk) return new Voxel('techmine:air');
 
     const lx = ((globalX % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-    const ly = globalY; //((globalY % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+    const ly = Math.floor(globalY); //((globalY % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
     const lz = ((globalZ % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+    //console.log(lx, ly, lz);
     return (!(ly < 0 || ly >= 128)) ? chunk.datas[lx][ly][lz] : new Voxel('techmine:air');
 }
 
@@ -103,251 +110,175 @@ function debugPositionsWithAxes(scene, positions, size = 0.2) {
         scene.add(helper);
     }
 }
-
 class Chunk {
-    /** @type {number} */
-    #cx;
-    /** @type {number} */
-    #cz
-    /**
-     * 
-     * @param {number} chunkX 
-     * @param {number} chunkZ 
-     */
-    constructor(chunkX, chunkZ,/** @type {World} */ world, size = 16,/** @type {Array<number,Array<number,Array<number,Voxel>>>} */ data = []) {
-        this.#cx = chunkX;
-        this.#cz = chunkZ;
+    constructor(chunkX, chunkZ, world, size = 16, data = []) {
+        this.cx = chunkX;
+        this.cz = chunkZ;
+        this.inRenderRange = true;
         this.world = world;
-        this.adddTOSCENEN = false;
-        // /** @type {Map<string,three.Mesh>} */
-        //this.meshs = new Map();
+        this.size = size;
+        this.modifiedChunk = false;
         /** @type {three.Mesh} */
         this.mesh = null;
-        /** @type {three.Mesh} */
-        this.meshT = null;
+        this.needsUpdateServer = true;
+        this.needsUpdate = true; // จะสร้าง mesh ใหม่เฉพาะเมื่อ true
         /** @type {Voxel[][][]} */
-        this.datas = [];
-        if (this.datas.length === 0) {
-            this.datas = [];
-            for (let x = 0; x < 16; x++) {
-                this.datas[x] = [];
-                for (let y = 0; y < 128; y++) {
-                    this.datas[x][y] = [];
-                    for (let z = 0; z < 16; z++) {
-                        this.datas[x][y][z] = new Voxel('techmine:air');
-                    }
-                }
-            }
-
-        }
-    }
-    render(s) {
-        const size = 16;
-        let ddd = 0;
-        let positions = [];
-        //let indices = [];
-        let uvs = [];
-        let indices = [];
-        let vertexOffset = 0;
-        function _render(_this, i, j, k) {
-            ddd++;
-            //if (this.datas[i][j][k].id === 'techmine:air') continue;
-            // St0ne block
-            //console.log(i, j, k);
-            //document.getElementById('count').innerText += `I${i} J${j} K${k} .`;
-            const gX = _this.#cx * size + i;
-            const gY = j;
-            const gZ = _this.#cz * size + k;
-            let dirs = [];
-            const thisBlock = getBlock(gX, gY, gZ, 16, _this.world);
-            for (const _K in FaceDirs) {
-                /** @type {{dx: number, dy: number, dz: number}} */
-                const value = FaceDirs[_K];
-                let block = getBlock(gX + value.dx, gY + value.dy, gZ + value.dz, 16, _this.world);
-                let solid = block !== null ? block.isTransparent() : true;
-                if (solid) {
-                    dirs.push(_K);
-
-                }
-            }
-            //console.log(i);
-            if (_this.datas[i][j][k].id === 'techmine:air') dirs = [];
-            if (dirs.length === 0) return;
-            //console.log(JSON.stringify(uv));
-            dirs.forEach((_K) => {
-                const uv = texture.getUVfromName(thisBlock.id, _K);
-                uvs.push(...uv);
-            })
-            // @ts-ignore
-            let pni = createIndices(dirs);
-            if (thisBlock !== null) if (thisBlock.isTransparent()) pni = createIndices([]);
-            for (let x = 0; x < pni.positions.length; x += 3) {
-                positions.push(
-                    pni.positions[x + 0] + i,
-                    pni.positions[x + 1] + j,
-                    pni.positions[x + 2] + k
-                );
-            }
-
-            const adjustedIndices = pni.indices.map(i => i + vertexOffset);
-            if (i < 8) {
-                indices.push(...adjustedIndices);
-            } else {
-                indices.push(...adjustedIndices);
-            }
-            vertexOffset += pni.positions.length / 3;
-        }
-        for (let x = 0; x < 8; x++) {
-
-            for (let z = 0; z < 8; z++) {
-
-                for (let y = 0; y < 16; y++) {
-                    _render(this, x, y, z);
-                }
-
-                for (let y = 16; y < 32; y++) {
-                    _render(this, x, y, z);
-                }
-
-                for (let y = 32; y < 64; y++) {
-                    _render(this, x, y, z);
-                }
-                for (let y = 64; y < 96; y++) {
-                    _render(this, x, y, z);
-                }
-                for (let y = 96; y < 128; y++) {
-                    _render(this, x, y, z);
-                }
-            }
-
-            for (let z = 8; z < 16; z++) {
-
-                for (let y = 0; y < 16; y++) {
-                    _render(this, x, y, z);
-                }
-
-                for (let y = 16; y < 32; y++) {
-                    _render(this, x, y, z);
-                }
-
-                for (let y = 32; y < 64; y++) {
-                    _render(this, x, y, z);
-                }
-                for (let y = 64; y < 96; y++) {
-                    _render(this, x, y, z);
-                }
-                for (let y = 96; y < 128; y++) {
-                    _render(this, x, y, z);
-                }
-
-            }
-        }
-
-        const geometry = new three.BufferGeometry();
-        geometry.setAttribute('position', new three.Float32BufferAttribute(positions, 3));
-        // @ts-ignore
-        geometry.setAttribute('uv', new three.Float32BufferAttribute(uvs.flat(), 2));
-        const allIndice = [...indices, ...indices];
-        geometry.setIndex(indices);
-        geometry.computeVertexNormals();
-        const material = new three.MeshStandardMaterial({
-            map: texture.getAtlasTexture(),
-            //color: 0xff2323,
-            wireframe: false
-        });
-        const mesh = new three.Mesh(geometry, material);
-        mesh.position.set(this.#cx * 16, 0, this.#cz * 16);
-        if (this.mesh) this.mesh.geometry.dispose();
-        if (!this.mesh) this.mesh = mesh;
-        this.mesh.geometry = geometry;
-        this.mesh.material = material;
-        this.mesh.castShadow = true;
-        this.mesh.receiveShadow = true;
-        console.log(geometry.getIndex().count / 3, geometry.attributes.uv.count / 2);
-        positions = [];
-        uvs = [];
-        indices = [];
-        vertexOffset = 0;
-        //alert(uvs.length / 2 === positions.length / 3);
-        //alert(`${uvs.length / 2} , ${indices.length / 2}`);
-        for (let x = 8; x < 16; x++) {
-            //alert('....')
-            for (let z = 0; z < 8; z++) {
-
-                for (let y = 0; y < 16; y++) {
-                    _render(this, x, y, z);
-                }
-
-                for (let y = 16; y < 32; y++) {
-                    _render(this, x, y, z);
-                }
-
-                for (let y = 32; y < 64; y++) {
-                    _render(this, x, y, z);
-                }
-                for (let y = 64; y < 96; y++) {
-                    _render(this, x, y, z);
-                }
-                for (let y = 96; y < 128; y++) {
-                    _render(this, x, y, z);
-                }
-            }
-
-            for (let z = 8; z < 16; z++) {
-
-
-                for (let y = 0; y < 16; y++) {
-                    _render(this, x, y, z);
-                }
-
-                for (let y = 16; y < 32; y++) {
-                    _render(this, x, y, z);
-                }
-
-                for (let y = 32; y < 64; y++) {
-                    _render(this, x, y, z);
-                }
-                for (let y = 64; y < 96; y++) {
-                    _render(this, x, y, z);
-                }
-                for (let y = 96; y < 128; y++) {
-                    _render(this, x, y, z);
-                }
-            }
-        }
-        {
-            const geometry = new three.BufferGeometry();
-            geometry.setAttribute('position', new three.Float32BufferAttribute(positions, 3));
-            // @ts-ignore
-            geometry.setAttribute('uv', new three.Float32BufferAttribute(uvs.flat(), 2));
-            const allIndice = [...indices, ...indices];
-            geometry.setIndex(indices);
-            geometry.computeVertexNormals();
-            const mesh = new three.Mesh(geometry, material);
-            mesh.position.set(this.#cx * 16, 0, this.#cz * 16);
-            if (this.meshT) this.meshT.geometry.dispose();
-            if (!this.meshT) this.meshT = mesh;
-            this.meshT.geometry = geometry;
-            this.meshT.material = material;
-            this.meshT = mesh;
-            this.meshT.castShadow = true;
-            this.meshT.receiveShadow = true;
-            console.log(geometry.getIndex().count / 3, geometry.attributes.uv.count / 2);
-        }
-        if (!this.adddTOSCENEN) {
-            this.addToScene(s);
-        }
+        this.datas = data.length ? data : this.createEmptyData(size, 128);
+        this.biome = "";
     }
     /**
      * 
-     * @param {*} scene 
+     * @returns {any[][][]}
      */
-    addToScene(scene) {
-        this.adddTOSCENEN = true;
-        scene.add(this.mesh);
-        scene.add(this.meshT);
+    serialize() {
+        let arr = [];
+        for (let x = 0; x < this.size; x++) {
+            arr[x] = [];
+            for (let y = 0; y < 128; y++) {
+                arr[x][y] = [];
+                for (let z = 0; z < this.size; z++) {
+                    // @ts-ignore
+                    arr[x][y][z] = this.datas[x][y][z].serialize();
+                }
+            }
+        }
+        return arr;
+    }
+    deserialize(a) {
+        for (let x = 0; x < this.size; x++) {
+            for (let y = 0; y < 128; y++) {
+                for (let z = 0; z < this.size; z++) {
+                    // @ts-ignore
+                    this.datas[x][y][z].deserialize(a[x][y][z]);
+                }
+            }
+        }
+    }
+    unload() {
+        //this.mesh.rotation.y = -Math.PI / 3;
+        if (this.mesh) {
+            if (this.mesh.geometry) this.mesh.geometry.dispose();
+            // @ts-ignore
+            if (this.mesh.material) this.mesh.material.dispose();
+        }
+        this.world.groups.remove(this.mesh);
+        this.mesh = null;
+        this.needsUpdate = false;
+    }
+    createEmptyData(size, height) {
+        const arr = [];
+        for (let x = 0; x < size; x++) {
+            arr[x] = [];
+            for (let y = 0; y < height; y++) {
+                arr[x][y] = [];
+                for (let z = 0; z < size; z++) {
+                    // @ts-ignore
+                    arr[x][y][z] = new Voxel('techmine:air');
+                }
+            }
+        }
+        return arr;
     }
 
+
+    buildMesh() {
+        const size = this.size;
+        const positions = [];
+        const uvs = [];
+        const indices = [];
+        let vertexOffset = 0;
+
+        for (let x = 0; x < size; x++) {
+            for (let y = 0; y < 128; y++) {
+                for (let z = 0; z < size; z++) {
+                    const block = this.datas[x][y][z];
+                    if (block.id === 'techmine:air') continue;
+
+                    const gX = this.cx * size + x;
+                    const gY = y;
+                    const gZ = this.cz * size + z;
+
+                    // ตรวจสอบเพื่อนบ้านว่าหน้าด้านไหนต้อง render
+                    const dirs = [];
+                    for (const dir in FaceDirs) {
+                        const { dx, dy, dz } = FaceDirs[dir];
+                        const neighbor = getBlock(gX + dx, gY + dy, gZ + dz, 16, this.world);
+                        const needToCulling = checkFaceCulling(block, neighbor);
+                        if (!needToCulling) dirs.push(dir);
+                    }
+
+                    if (dirs.length === 0) continue;
+
+                    // UV
+                    dirs.forEach(dir => {
+                        const uv = texture.getUVfromName(block.id, dir);
+                        uvs.push(...uv);
+                    });
+
+                    // Geometry data
+                    let pni = createIndices(dirs);
+                    //if (block.isTransparent()) pni = createIndices([]);
+
+                    for (let i = 0; i < pni.positions.length; i += 3) {
+                        positions.push(
+                            pni.positions[i] + x,
+                            pni.positions[i + 1] + y,
+                            pni.positions[i + 2] + z
+                        );
+                    }
+
+                    const adjustedIndices = pni.indices.map(i => i + vertexOffset);
+                    indices.push(...adjustedIndices);
+
+                    vertexOffset += pni.positions.length / 3;
+                }
+            }
+        }
+
+        // สร้าง BufferGeometry ครั้งเดียว
+        const geometry = new three.BufferGeometry();
+        geometry.setAttribute('position', new three.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('uv', new three.Float32BufferAttribute(uvs, 2));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
+        if (!this.mesh) {
+            this.mesh = new three.Mesh(geometry, sharedMaterial);
+            this.mesh.position.set(this.cx * size, 0, this.cz * size);
+        } else {
+            this.mesh.geometry.dispose();
+            this.mesh.geometry = geometry;
+        }
+
+        this.mesh.castShadow = true;
+        this.mesh.receiveShadow = true;
+        this.needsUpdate = false;
+    }
+
+    render(scene) {
+        if (this.needsUpdate) {
+            this.buildMesh();
+            scene.add(this.mesh);
+        }
+    }
 }
+
+const tex = texture.getAtlasTexture();
+// ใช้ Material เดียวกันทั้งโลก
+let sharedMaterial = new three.MeshStandardMaterial({
+    map: tex,
+    transparent: true
+});
+sharedMaterial.needsUpdate = true;
+setTimeout(() => {
+    if (typeof window != "undefined") tex.dispose();
+    sharedMaterial.dispose();
+    sharedMaterial = new three.MeshStandardMaterial({
+        map: texture.getAtlasTexture(),
+        transparent: true,
+        alphaTest: 0.5
+    });
+    sharedMaterial.needsUpdate = true;
+}, 6_000);
 let chunkY = 128;
 export { Chunk, getBlock, chunkY };

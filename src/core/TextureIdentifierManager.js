@@ -1,82 +1,34 @@
 import * as three from 'three';
+import { blocks, texture } from "./TextureRegistry.js";
 
-/**
- * @typedef {Object} BlockTexture
- * @property {string} [all] - ใช้กับทุกด้าน (เช่น type: "all")
- * @property {string} [top] - เท็กซ์เจอร์ด้านบน
- * @property {string} [bottom] - เท็กซ์เจอร์ด้านล่าง
- * @property {string} [front] - เท็กซ์เจอร์ด้านหน้า
- * @property {string} [back] - เท็กซ์เจอร์ด้านหลัง
- * @property {string} [left] - เท็กซ์เจอร์ด้านซ้าย
- * @property {string} [right] - เท็กซ์เจอร์ด้านขวา
- */
-
-/**
- * @typedef {"all" | "TwoSide" | "SixSide"} SideType
- */
-
-/**
- * @typedef {Object} BlockDefinition
- * @property {SideType} type - ประเภทของบล็อกตามด้านที่ใช้
- * @property {BlockTexture} texture - ข้อมูลเท็กซ์เจอร์ของแต่ละด้าน
- */
-
-/**
- * @typedef {Object.<string, BlockDefinition>} BlockMap
- * อ็อบเจกต์ที่แมปชื่อบล็อกกับการตั้งค่าของบล็อกนั้น
- */
-const texture = {
-    "techmine:default": "block/default.png",
-    "techmine:stone": "block/stone.png",
-    "techmine:dirt": "block/dirt.png",
-    "techmine:wood_log_side": "block/wood_log_side.png",
-    "techmine:wood_log_top": "block/wood_log_top.png"
-}
-/** @type {BlockMap} */
-const blocks = {
-    "techmine:default": {
-        type: "all",
-        texture: { all: "techmine:default" }
-    },
-    "techmine:stone": {
-        type: "all",
-        texture: { all: "techmine:stone" }
-    },
-    "techmine:dirt": {
-        type: "all",
-        texture: { all: "techmine:dirt" }
-    },
-    "techmine:wood_log": {
-        type: "TwoSide",
-        texture: { top: "techmine:wood_log_top", left: "techmine:wood_log_side" }
-    }
-}
 const AtlasSize = 1024;
 const AtlasTextureSize = 32;
 const loaded = {};
-const canvas = document.createElement('canvas');
-canvas.width = 1024;
-canvas.height = 1024;
-const context = canvas.getContext('2d');
+let canvas;
+let context;
+if (typeof process == 'undefined') {
+    canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 1024;
+    context = canvas.getContext('2d', { alpha: true });
+    context.fillStyle = "rgba(0,0,0,0)";
+    context.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    console.log("Texture canvas context created");
+}
 let TexturePathPrefix = "texturepack/Default/";
 function loadImage(src) {
     //alert(src);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const Img = new Image();
-        Img.src = TexturePathPrefix + src;
+        console.log("Loading Image: " + src + " with Prefix path: " + TexturePathPrefix);
         Img.onload = () => resolve(Img);
+        Img.onerror = (err) => { console.error(err); reject(err) };
+        Img.src = TexturePathPrefix + src;
     });
 }
-//const image = loadImage('/texturepack/Default/block/default.png');
-for (let i = 0; i < 32; i++) {
-    for (let j = 0; j < 32; j++) {
-        loaded[i] = {
-            image: null,
-            i,
-            j
-        }
-    }
-}
+//image = loadImage('/texturepack/Default/block/default.png');
+
+
 async function loadTex() {
     let x = 0;
     let y = 0;
@@ -84,23 +36,30 @@ async function loadTex() {
         if (true) {
             if (x === 31) { x = 0; y++; };
             const image = await loadImage(texture[i]);
+            //console.log(image);
             loaded[i] = {
                 image,
                 x,
                 y
             };
+            //console.log(loaded[i].image);
+            //console.log(texture[i]);
             x++;
         }
     }
+    //console.log(JSON.stringify(loaded, undefined, 2));
     //alert('Load finsish');
 }
+let mat;
 function getAtlasTexture() {
-
-    context.fillStyle = 'lightgrey';
-    context.fillRect(0, 0, 1024, 1024);
+    //loadTex();
+    if (typeof window == "undefined") return;
+    //context.fillStyle = 'lightgrey';
+    //context.fillRect(0, 0, 1024, 1024);
     //document.body.appendChild(canvas);
     let x = 0;
     let y = 0;
+    //console.log(JSON.stringify(loaded, undefined, 2), 'atlas');
     for (const k in loaded) {
         //alert(k);
         if (loaded[k].x === 31) {
@@ -115,13 +74,50 @@ function getAtlasTexture() {
         }
 
     }
-    let mat = new three.CanvasTexture(canvas);
+    if (mat instanceof three.CanvasTexture) {
+        mat.dispose();
+    }
+    mat = new three.CanvasTexture(canvas);
+    mat.minFilter = three.NearestFilter;
+    mat.magFilter = 1003;
+    mat.format = three.RGBAFormat;
+    mat.needsUpdate = true;
+    mat.wrapS = three.ClampToEdgeWrapping;
+    mat.wrapT = three.ClampToEdgeWrapping;
+    mat.needsUpdate = true;
+    return mat;
+}
+function reload() {
+    if (typeof window == "undefined") return;
+    context.fillStyle = 'rgba(0,0,0,0)';
+    context.fillRect(0, 0, 1024, 1024);
+    //document.body.appendChild(canvas);
+    let x = 0;
+    let y = 0;
+    //console.log(JSON.stringify(loaded, undefined, 2), 'atlas');
+    for (const k in loaded) {
+        //alert(k);
+        if (loaded[k].x === 31) {
+            x = 0;
+            y += 32;
+            continue;
+        }
+        //console.log(x, y);
+        if (loaded[k].image) {
+            context.drawImage(loaded[k].image, x, y, 32, 32);
+            x += 32;
+        }
+
+    }
+    mat = new three.CanvasTexture(canvas);
     mat.minFilter = three.NearestFilter;
     mat.magFilter = 1003;
     mat.wrapS = three.ClampToEdgeWrapping;
     mat.wrapT = three.ClampToEdgeWrapping;
+    mat.needsUpdate = true;
     return mat;
 }
+setTimeout(reload, 5_000);
 /**
  * 
  * @param {number} tileX 
@@ -135,7 +131,7 @@ function getUVFromTile(tileX, tileY, tileCountX, tileCountY) {
     const tileHeight = 1 / tileCountY;
     const margin = 1 / 1024;
     let u0 = tileX * tileWidth;
-    let v0 = 1 - (tileY + 1) * tileHeight; // y เริ่มจากบน
+    let v0 = 1 - (tileY + 1) * tileHeight // y เริ่มจากบน
     let u1 = u0 + tileWidth;
     let v1 = v0 + tileHeight;
     u0 += margin; v0 += margin; u1 -= margin; v1 -= margin;
