@@ -18,11 +18,18 @@ let { DEG2RAD, RAD2DEG } = MathUtils;
 import { OtherPlayerManager } from './OtherPlayerManager.js';
 import { getSchema, setSchema } from './core/BufferPacketSchemas.js';
 import * as PlayerPacket from './PlayerPacket.js';
+import { hash } from "./Server/Hash.js";
 function _log(...msg) {
     console.log(msg.join(" "));
 }
+function getQuery(name) {
+    return new URLSearchParams(window.location.search).get(name);
+}
 /** @typedef {RendererInfo} RendererInfoType */
-
+const uuid = (getQuery("uuid")==undefined) ? "abcdef1234567890": getQuery("uuid");
+//let
+const displayName = (getQuery("name")==undefined) ? "undefined" : getQuery("name");
+const hashid = hash(uuid);
 let world = new c.World.World();
 let physEngine = new phys.PhysicsEngine(c, world);
 const joy = createJoystick(150, 'left');
@@ -57,6 +64,7 @@ let playermanager = new OtherPlayerManager();
 let ChunkEvent = new EventEmitter();
 let SocketHandler = new EventEmitter();
 let BufferHandler = new EventEmitter();
+BufferHandler.on('0',(buf)=>{playermanager.updateBuf(buf);/*console.log(buf)*/});
 let cName = (x, z) => { return `${x}_${z}` };
 SocketHandler.on('ChunkDataPart', (data) => {
     const cdp = new ChunkDataPart(data);
@@ -74,6 +82,7 @@ SocketHandler.on('ChunkDataPart', (data) => {
     }
 
 });
+
 SocketHandler.on("PlayerJoined", (dat) => {
     let uuid = dat.uuid;
     let displayName = dat.displayName;
@@ -102,14 +111,17 @@ document.body.appendChild(e);
 let oldPlayerChunk = [0, 0];
 function sendPosition() {
     if (typeof con !== "undefined") {
+//console.log(player.mesh.rotation.y*RAD2DEG);
         let data = {
             x: player.position.x,
             y: player.position.y,
             z: player.position.z,
             camX: player.mesh.rotation.y * RAD2DEG,
             camY: 0,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            hash: hashid
         }
+//alert(hashid);
         let encoded = bufferPacket.encode(data, getSchema("PlayerPosition"));
         if (con.readyState == con.OPEN)
             con.send(encoded);
@@ -146,16 +158,27 @@ async function connect(addr, protocol = "ws://") {
     con = new WebSocket(protocol + addr);
     con.binaryType = "arraybuffer";
     ping = new pinger(con);
-    con.addEventListener("message", (e, isBinary) => {
-        let str = (e.data?.toString) ? e.data.toString() : "";
-        if (isBinary) {
-            let dv = new DataView(e.data);
-            let type = dv.getUint8(0);
-            BufferHandler.emit(`${type}`, e.data);
-        }
-        let data = JSON.parse(e.data);
+
+con.addEventListener("message", (e) => {
+
+    // ข้อความ JSON
+    if (typeof e.data === "string") {
+        const data = JSON.parse(e.data);
         SocketHandler.emit(data.type ?? "", data);
-    });
+        return;
+    }
+
+    // ข้อมูล Binary (ArrayBuffer)
+    if (e.data instanceof ArrayBuffer) {
+        const dv = new DataView(e.data);
+        const type = dv.getUint8(0);
+        BufferHandler.emit(`${type}`, e.data);
+        return;
+    }
+
+    console.warn("Unknown message type:", e.data);
+});
+
     con.addEventListener("close", () => {
         ping.stop();
         player.entity.freeze = true;
@@ -190,7 +213,7 @@ async function connect(addr, protocol = "ws://") {
         world.getChunk(0, 0).inRenderRange = true;
         //chunk.datas[0][0][5] = new c.Voxel.Voxel("techmine:stone");
         chunk.render(world.groups);
-        con.send(PlayerPacket.createPlayerInitPacket("abcdef1234567890", "Achira"));
+        con.send(PlayerPacket.createPlayerInitPacket(uuid, displayName));
     });
 
 }
@@ -236,6 +259,7 @@ function initInfo(info) {
 portal.connect = connect;
 portal.getChunk = getChunk;
 portal.initInfo = initInfo;
+portal.pm = playermanager;
 // @ts-ignore
 let worldldr = new WorldLoader2D(world, player, ChunkEvent, getChunk, con, log);
 e.addEventListener("click", () => {

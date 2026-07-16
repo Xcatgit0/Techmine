@@ -18,12 +18,12 @@ class Entity {
 
     getAABB() {
         return {
-            minX: this.x - this.width / 2,
-            maxX: this.x + this.width / 2,
+            minX: (this.x - this.width / 2) +0.35,
+            maxX: (this.x + this.width / 2) +0.35,
             minY: this.y,
             maxY: this.y + this.height,
-            minZ: this.z - this.depth / 2,
-            maxZ: this.z + this.depth / 2,
+            minZ: (this.z - this.depth / 2) +0.35,
+            maxZ: (this.z + this.depth / 2) +0.35,
         };
     }
 }

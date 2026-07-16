@@ -19,6 +19,7 @@ let scene = new three.Scene();
 scene.add(world.groups);
 // @ts-ignore
 window.scene = scene;
+scene.add(client.portal.pm.group);
 let camera = new three.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1024);
 let renderer = new three.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -151,7 +152,9 @@ window.addEventListener('keydown', (ev) => {
 let ambientLight = new three.AmbientLight(new three.Color(1, 1, 1));
 scene.add(ambientLight);
 const animate = () => {
+if (player.entity.y< 0) {player.entity.y= 50}
     _stat.begin();
+//    player.mesh.rotation.y = Math.atan2(Math.sin(player.mesh.rotation.y),Math.cos(player.mesh.rotation.y));
     dt = (Date.now()) - (lastTime);
     lastTime = Date.now();
     //physEngine.update(dt / 1000);

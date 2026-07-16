@@ -5,9 +5,23 @@ import { EventEmitter } from "./EventEmitter.js";
 import { Entity, PhysicsEngine } from "./core/Physics.js"; // 👈 import entity
 import * as TextTexture from './core/TextTexture.js';
 import disposeGroup from "./disposer.js";
+const THREE = three;
 export function createPlayerMesh(displayName) {
     // Mesh แสดงผล
     let mesh = new three.Group();
+const dir = new THREE.Vector3(0, 0, -1).normalize(); // ทิศทาง
+const origin = new THREE.Vector3(0, 0, 0);          // จุดเริ่ม
+const length = 5;                                   // ความยาว
+const color = 0xff0000;                             // สีแดง
+
+const arrow = new THREE.ArrowHelper(
+    dir,
+    origin,
+    length,
+    color
+);
+
+mesh.add(arrow);
     const axles = new three.AxesHelper(2);
     mesh.add(axles);
     let capsuleGeometry = new three.CapsuleGeometry(0.5, 2);

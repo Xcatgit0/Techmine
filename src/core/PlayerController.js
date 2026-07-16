@@ -49,6 +49,7 @@ export class PlayerController {
 
         // หมุนกล้องตาม yaw
         this.yaw -= input.yaw * delta * 2; // ปรับความเร็วการหมุนได้
+	this.yaw = Math.atan2(Math.sin(this.yaw),Math.cos(this.yaw));
         this.camera.rotation.set(0, this.yaw, 0);
 
         // เคลื่อนที่แนวหน้าหลังซ้ายขวา

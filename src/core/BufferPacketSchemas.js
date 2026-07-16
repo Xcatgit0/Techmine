@@ -31,8 +31,9 @@ const PlayerPositionSchema = [
     { name: "y", type: "float32" },          // 9
     { name: "z", type: "float32" },          // 13
     { name: "timestamp", type: "uint32" },   // 17
-    { name: "camX", type: "int8" },          // 18
-    { name: "camY", type: "int8" }           // 19 bytes
+    { name: "camX", type: "int16" },          // 18
+    { name: "camY", type: "int16" },          // 19 bytes
+    { name: "hash", type: "uint32"}          // 23 bytes
 ]
 setSchema(PlayerPositionSchema, "PlayerPosition", true);
 export { getSchema, setSchema };

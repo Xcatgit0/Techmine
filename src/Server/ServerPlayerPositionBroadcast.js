@@ -1,41 +1,60 @@
-import { Player } from "../PlayerPacket.js";
 import { getSchema } from "../core/BufferPacketSchemas.js";
 import { encode } from "../core/BufferPacket.js";
-/** @typedef {Map<String,Player>} Players*/
-export class ServerPlayerPositionBroadcast {/**
- * 
- * @param {Players} players 
- * @param {Number} fps 
- */
+import { hash } from "./Hash.js";
+
+/** @typedef {Map<String,import("../PlayerPacket.js").Player>} Players */
+
+export class ServerPlayerPositionBroadcast {
+
     constructor(players, fps = 20) {
-        /** @type {Players} */
         this.players = players;
-        this.fps = 20;
-        this.intervalTime = 1000 / this.fps;
+        this.fps = fps;
+        this.intervalTime = 1000 / fps;
         this.interval = null;
+        this.hashMap = new Map();
     }
+
     start() {
-        this.interval = setInterval(function () { }, this.intervalTime);
+        if (this.interval) clearInterval(this.interval);
+        this.interval = setInterval(
+            this.broadcast.bind(this),
+            this.intervalTime
+        );
     }
+
     broadcast() {
-        for (let k in this.players.keys()) {
-            let p = this.players.get(k);
-            this.broadcastExept(p.uuid);
+
+        for (const [uuid, player] of this.players) {
+///console.log(uuid,player.hash);
+            if (!this.hashMap.has(uuid)) {
+                this.hashMap.set(uuid, hash(uuid));
+		player.hash = hash(uuid);
+            }
+
+            this.broadcastExcept(player);
+
         }
+
     }
-    broadcastExept(uuid) {
-        let filtered = [...this.players.values()]
-            .filter(p => p.uuid !== uuid);
-        filtered.forEach((p) => {
+
+    broadcastExcept(receiver) {
+//if (receiver.uuid=="gag") console.log(receiver.cam.x);
+        for (const other of this.players.values()) {
+
+            if (other.uuid === receiver.uuid) continue;
             let encoded = encode({
                 timestamp: Date.now(),
-                x: p.pos.x,
-                y: p.pos.y,
-                z: p.pos.z,
-                camX: p.cam.x,
-                camY: p.cam.y
+                x: other.pos.x,
+                y: other.pos.y,
+                z: other.pos.z,
+                camX: other.cam.x,
+                camY: other.cam.y,
+                hash: this.hashMap.get(other.uuid)
             }, getSchema("PlayerPosition"));
-            p.con.send(encoded);
-        });
+            receiver.con.send(encoded);
+
+        }
+
     }
+
 }

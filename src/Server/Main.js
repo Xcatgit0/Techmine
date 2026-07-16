@@ -9,12 +9,14 @@ import * as playerpac from '../PlayerPacket.js';
 import { Generate } from '../SimpleWorldGeneration.js';
 import * as bufferpac from '../core/BufferPacket.js';
 import { getSchema, setSchema } from '../core/BufferPacketSchemas.js';
+import {ServerPlayerPositionBroadcast} from "./ServerPlayerPositionBroadcast.js";
 let Server = new ws.WebSocketServer({ port: 3080 });
 let connections = [];
 /** @type {Map<ws.WebSocket,String>} */
 let PlayerConnection = new Map();
 /** @type {Map<String,playerpac.Player>} */
 let Players = new Map();
+let sppb = new ServerPlayerPositionBroadcast(Players,20);
 let World = new core.World.World();
 let SocketHandler = new EventEmitter();
 let BufferHandler = new EventEmitter();
@@ -66,6 +68,19 @@ let PacketInit = () => {
                 }));
             }
         });
+	for (const p of Players.values()) {
+
+	    if (p.uuid === player.uuid) continue;
+
+	    con.send(JSON.stringify({
+	        type: "PlayerJoined",
+        	uuid: p.uuid,
+        	displayName: p.displayName
+    	}));
+
+}
+
+
     });
     // === buffer packet ===
     BufferHandler.on('0', (a, con, from) => {
@@ -126,3 +141,4 @@ Server.addListener('connection', (con) => {
         if (Players.has(from)) Players.get(from).remove();
     })
 });
+sppb.start();
