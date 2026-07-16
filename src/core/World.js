@@ -11,7 +11,7 @@ export class World {
         this.groups = new three.Group();
         if (typeof window !== "undefined") {
             window.addEventListener("keydown", async (e) => {
-                if (e.key == "r" && e.ctrlKey) {
+                if (e.key == "n") {
                     await this.reloadAllChunk();
                 }
             });
